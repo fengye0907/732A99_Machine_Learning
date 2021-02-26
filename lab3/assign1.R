@@ -1,0 +1,62 @@
+set.seed(1234567890)
+library(geosphere)
+Sys.setlocale(locale = "latin")
+stations <- read.csv("stations.csv",stringsAsFactors = F,fileEncoding = "latin1")
+temps <- read.csv("temps50k.csv",stringsAsFactors = F)
+st <- merge(stations,temps,by="station_number")
+
+times <- c("04:00:00", "06:00:00","08:00:00" ,"10:00:00","12:00:00","14:00:00", 
+           "16:00:00","18:00:00","20:00:00","22:00:00","24:00:00")
+
+temp <- vector(length=length(times))
+temp2 <- vector(length=length(times))
+
+### Students’ code here ########################################################
+
+h_distance <- 33000
+h_date <-40
+h_time <-4   # control the smoothness of temperatures in a day
+a <- 58.4137 
+b <- 15.6235 
+date1 <- "2013-7-23"
+# date1 <- "2013-12-23"
+
+required<-st[st$date< date1,]   # only consider the dates before date1
+times1 <- as.POSIXct(times,format="%H:%M:%S")
+
+##distances by geography
+d1<-distm(required[,c("latitude","longitude")], c(a,b))
+k1<-exp(-(d1/h_distance)^2)
+
+##distances by dates
+d2<-as.numeric(
+  difftime(as.POSIXct(date1,format="%Y-%m-%d"),
+           as.POSIXct(required$date,format="%Y-%m-%d"),
+           units="days")
+)
+k2<-exp(-(d2/h_date)^2)
+
+for(i in 1:length(times1)){
+  ##distances by hours
+  dist <- as.numeric(
+    difftime(as.POSIXct(required$time,format="%H:%M:%S"),
+             times1[i],
+             units="hours")
+  )
+  k3<-exp(-(dist/h_time)^2)
+  
+  K<-as.vector(k1)+as.vector(k2)+as.vector(k3)
+  temp[i]<-sum(K*required$air_temperature)/sum(K)
+  K<-as.vector(k1)*as.vector(k2)*as.vector(k3)
+  temp2[i]<-sum(K*required$air_temperature)/sum(K)
+  
+}
+
+df <- data.frame(times=times, 
+                 temp=temp,
+                 temp2=temp2)
+
+library(ggplot2)
+p1<-ggplot(df,aes(x=times, y=temp))+geom_point()+labs(title="summation")
+p2<-ggplot(df,aes(x=times, y=temp2))+geom_point()+labs(title="multiplication")
+plot(gridExtra::arrangeGrob(p1,p2))

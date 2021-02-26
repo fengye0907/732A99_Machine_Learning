@@ -1,0 +1,387 @@
+---
+title: "Lab2_block2"
+author: "Andreas"
+date: "14 Dec 2018"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+##Assignment 1 -Mortality Rates
+
+###1
+
+```{r,echo=F,message=F}
+set.seed(12345)
+#read data xlsx
+data<-readxl::read_xlsx("ïnfluenza.xlsx")
+#plot time series 
+plot(data$Time,data$Mortality,type="l",col="red",ylim=c(0,2800),
+     main="Mortality and Influenza vs Time",ylab="Influenza / Mortality",
+     xlab= "Time")
+lines(data$Time,data$Influenza,type="l",col="blue")
+legend(2002,1000, legend=c("Mortality", "Infuenza"),
+       col=c("red", "blue"), cex=0.8,lty = 1)
+```
+
+We can see from the plot that when we have a peak at mortality we also have a peak at influenza.Thus we can conclude that there is possitive correlation between 
+mortality and Influenza
+
+###2
+```{r,echo=F,message=F}
+library(mgcv)
+set.seed(12345)
+gam.fit=gam(Mortality~s(Week,k=length(unique(data$Week)))+Year, 
+            data=data,method="GCV.Cp")
+
+
+#gam.fit
+```
+
+The underlying probabilistic model is $Mortality=N(Year+spline(Week),\sigma^2)$.Using the coefficients obtained the equation from the model is $Mortality=-680.598+1.233Year+14.23spline(Week)$
+
+###3
+
+
+```{r,echo=FALSE,message=F}
+#predictions using gam model
+preds<-predict(gam.fit,data)
+#plot predicitons and fitted Mortality
+plot(data$Time,data$Mortality,type="l",col="green",
+     main="Fitted and Predicted Mortality vs Time")
+lines(data$Time,preds,col="red")
+legend(2002,2500, legend=c("Fitted", "Predictions"),
+       col=c("green", "red"), cex=0.8,lty = 1)
+
+```
+The above plot shows the fitted (green line) and predicted (red) values for Mortality.As we can see there is a trend in Mortality from one year to the other because there is allways one peak and one trough every year.In constrant we can see that the line of our predictions using gam follows quite well the real trend of Mortality although it is much smoother and doesn't map the highs and lows well.
+
+
+```{r,echo=F}
+summary(gam.fit)
+
+```
+From the summary of our model we can see that the p-value for the intercept and the Year is not significant but for the Week is significant.
+
+```{r,echo=F}
+plot(gam.fit,main="Plot of week spine",col="red")
+
+```
+
+From the plot of the spline component we can see that there is a reasonal pattern in the week because it starts decreasing reaching until week 35 and then starts rising again.
+
+
+###4
+
+```{r,echo=F,message=F}
+#gam model low penalty
+gam.fit_low=gam(Mortality~s(Week,k=length(unique(data$Week)),sp=0.00001)+
+                  Year, data=data,method="GCV.Cp")
+#gam model high penalty
+gam.fit_high=gam(Mortality~s(Week,k=length(unique(data$Week)),sp=100)+
+                           Year, data=data,method="GCV.Cp")
+
+#predictions low penalty
+preds_low<-predict(gam.fit_low,data)
+#predictions high penalty
+preds_high<-predict(gam.fit_high,data)
+
+par(mfrow=c(1,2))
+#plot of preds and fitted high penalty
+plot(data$Time,data$Mortality,type="l",col="green",
+     main="Plot of high penalty")
+lines(data$Time,preds_high,col="red")
+
+#plots of preds and fitted low penalty
+plot(data$Time,data$Mortality,type="l",col="green",
+     main="Plot of low penalty")
+lines(data$Time,preds_low,col="red")
+
+
+```
+We can see from the plots of fitted(green) and predicted(red) values for high and low penalty model that the model with the high peanalty is smoother compared with the one with the lower penalty beacause more penalty leads to more interpretable model.
+
+```{r,echo=F,message=F}
+cat("=======================================================================================\n",
+    "The deviance for low penalty model is:  ",gam.fit_low$deviance,
+    "and fo high penalty model is: ",gam.fit_high$deviance)
+
+
+```
+
+We can see comparing the deviances for the models that high penalty is related to higher deviance greater and low penalty with less deviance.
+
+```{r,echo=F}
+df_data<-data.frame(low_peanalty=gam.fit_low$edf,high_peanlty=gam.fit_high$edf)
+df_data
+```
+
+Finally,from the reported table we can see that when the penalty is larger, the degrees of freedom  are smaller than the degrees of freedom for low penalty.
+
+
+###5
+```{r,echo=F,message=F}
+plot(data$Time,gam.fit$residuals,type="l")
+lines(data$Time,data$Influenza,col="orange")
+legend(2002,400, legend=c("Residuals", "Influenza"),
+       col=c("black", "orange"), cex=0.8,lty = 1)
+
+```
+The above plot confirms that the outbreaks of Influenza follow the trend of residuals.When we have a peak at influenza we have a peak in the residuals and from that we can say that they correlated.
+
+
+```{r,echo=F,message=F}
+
+cat("The correlaation between residuals and Influenza is :",cor(data$Influenza,gam.fit$residuals))
+
+```
+We can confirm that there is positive correlation for Influenza and residuals although not very strong.
+
+###6
+```{r,echo=F,message=F}
+
+gam.fit1=gam(Mortality~s(Week,k=length(unique(data$Week)))+
+               s(Year,k=length(unique(data$Year)))+
+               s(Influenza,k=length(unique(data$Influenza))),data=data)
+
+#summary(gam.fit)
+
+plot(data$Time,data$Mortality,type="l")
+lines(data$Time,predict(gam.fit1,data),col="red")
+legend(2002,2500, legend=c("Fitted", "Predictions"),
+       col=c("black", "red"), cex=0.8,lty = 1)
+
+```
+
+From the plot of the fitted and predicted values of Mortality we can conclude that the model with the splines of Year,Influenza and Week fits very well in the 
+Mortality trend and maps its trend quite well.Also we can conclude that Influenza plays a significant part in the explaination of Mortality which is something 
+very reasonable.
+
+```{r,echo=FALSE}
+
+cat("The correlation of fitted and predicted values for Mortality is :\n",
+    cor(fitted(gam.fit1),data$Mortality))
+
+```
+We can confirm are previous claim from the correlation of fitted and true values of Mortality above which indicated a strong correlation.
+
+
+##Assignment 2-High-dimensional methods
+
+###1
+```{r,echo=F}
+#read data
+df<-read.csv2("data.csv",sep=";")
+#make Conference a factor 
+df$Conference<-as.factor(df$Conference)
+set.seed(12345)
+#split data to train and test
+ind<-sample(nrow(df),floor(0.7*nrow(df)))
+dftrain<-df[ind,]
+dftest<-df[-ind,]
+
+```
+
+
+```{r,echo=F,message=F}
+
+library(pamr)
+#get the features
+x<-t(dftrain[,-which(names(dftrain) == "Conference")])
+#get the class
+y<-as.factor(dftrain$Conference)
+#make a list of data for centroid model
+list_df=list(x=x,y=y,
+             geneid=as.character(1:nrow(x)), genenames=rownames(x))
+#fit model
+par.model=pamr.train(list_df)
+#cross validation
+cvmodel=pamr.cv(par.model,list_df)
+#find threshold
+thres=cvmodel$threshold[which(cvmodel$error==min(cvmodel$error))]
+
+```
+
+
+
+```{r,echo=F}
+#plot centroids
+pamr.plotcen(par.model, list_df, threshold=thres)
+
+```
+The centroid plot is describing the distance of each feature from the 2 classes (0 and 1).The red column is coresponding to class 0 and green ceresponds to class 1
+
+
+```{r,echo=F,message=FALSE,echo=F,results="hide"}
+#make a matrix with the cetroids
+mat_genes<-invisible(pamr.listgenes(par.model,list_df,threshold=thres,genenames=T))
+#number of parameters selected
+num_centr<-nrow(mat_genes)
+cat("The number of parametrs selected are: ",num_centr) 
+```
+
+
+
+
+
+```{r,echo=F}
+#10 most contributing features
+cat("The 10 most contributing features are :\n",
+    mat_genes[1:10,2])
+
+```
+It its reasonable that the most cotributing features reported have a strong effect on classifing a mail as "announces of conferences" or not.Usually conference mails contain one or more of the words reported as most contributing.
+
+
+
+```{r,echo=F}
+#get the test features ->transpose it 
+dftest_features<-t(dftest[,-which(names(dftest) == "Conference")])
+#make predictions
+pred_pamr<-pamr.predict(par.model,dftest_features, threshold=thres,type="class")
+#misclassificaiton error centroid
+mis_error_cen<-mean(pred_pamr!=dftest$Conference)
+#accuracy centroid
+accuracy_cen<-mean(pred_pamr==dftest$Conference)
+cat("==============================================================================================\n",
+    "The misclssification error for test data is : ",mis_error_cen,
+    "and the accuracy for test data is : ",accuracy_cen)
+
+```
+
+
+###2a
+
+```{r,echo=F,message=FALSE}
+set.seed(12345)
+library(glmnet)
+#library(parallel)
+
+#make feature matrix
+X_data=dftrain[,-which(names(dftrain) == "Conference")]
+y_data=as.factor(dftrain$Conference)
+
+#fit elastic model
+elastic.fit<-cv.glmnet(as.matrix(X_data),y_data,family="binomial",alpha=0.5)
+
+
+#test data
+fitted_test<-as.matrix(dftest[,-which(names(dftest)=="Conference")])
+#make predictions using lambda.min
+elastic_preds<-predict(elastic.fit,fitted_test,type="class",s="lambda.1se")
+
+#misclassification error elastic
+mis_error_el<-mean(elastic_preds!=dftest$Conference)
+#acuracy elastic 
+accuracy_el<-mean(elastic_preds==dftest$Conference)
+cat("==============================================================================================\n",
+    "The misclssification error for test data is : ",mis_error_el,
+    "and the accuracy for test data is : ",accuracy_el)
+
+
+```
+
+```{r,echo=F}
+#length of coefficients
+num_elastic<-length(coef(elastic.fit,s=elastic.fit$lambda.1se)@x)
+cat("The number of coefficients for elastic is: ",num_elastic)
+
+```
+
+
+###2b
+```{r,echo=F,message=FALSE}
+library(kernlab)
+#fit svm model with vanilladot kernel
+svm<-ksvm(as.matrix(X_data),y_data,kernel="vanilladot") #getting a warring
+#make predictions
+svm_preds<-predict(svm,fitted_test,type="response")
+
+mis_error_svm<-mean(svm_preds!=dftest$Conference)
+accuracy_svm<-mean(svm_preds==dftest$Conference)
+cat("\n")
+cat("==============================================================================================\n",
+    "The misclssification error for test data is : ",mis_error_svm,
+    "and the accuracy for test data is : ",accuracy_svm)
+```
+
+```{r,echo=F}
+num_svm<-length(coef(svm)[[1]])
+cat("The number of coefficients for svm is: ",num_svm )
+
+```
+
+
+
+```{r,echo=F}
+library(xtable)
+#
+sum_data<-data.frame(c(mis_error_cen,mis_error_el,mis_error_svm),
+                     c(accuracy_cen,accuracy_el,accuracy_svm),
+                     c(num_centr,num_elastic,num_svm),
+                     c("centroid","elastic","svm"))
+colnames(sum_data)<-c("misclass.error","accuracy","n_features","model")
+
+
+library(knitr)
+#make a table 
+kable(sum_data, caption = "Summary table")
+
+```
+
+The table provides misclassification error,accuracy and number of features selected for the 3 models we train.According to the table the svm looks more preferable from the rest of the models, it has a very low misclassification error(high accuracy) and with fewer features compared to other models.
+
+
+
+###3
+```{r,echo=F}
+
+t<-sapply(df[,-which(names(df)=="Conference")],
+          function(x){ t.test(x[df$Conference==1],x[df$Conference==0])[["p.value"]]})
+
+benj<-function(p_values,alpha=0.05){
+  p_values<-sort(p_values)
+  indexes<-c(1:length(p_values))
+  L<-p_values-((alpha*indexes)/length(p_values))
+  best_p<-max(L[which(L<0)])
+  cutoff<-p_values[L==best_p]
+  rejected_values<-p_values[p_values<=cutoff]
+  list(cutoff,rejected_values)
+  
+               
+}
+
+rej<-as.data.frame(benj(t)[[2]])
+colnames(rej)<-c("p-value")
+cat("========================================================\n",
+    "The cutoff value is: ",benj(t)[[1]])
+cat("\n")
+cat("=========================================================\n",
+    "The features coresponding to reject hypotheses are : \n")
+
+kable(rej, caption = "Benjamin test")
+
+
+```
+
+From the table we can see the features that rejected from null hypotheses are the ones that are significant because the class of 1 which is the "announces of conferences" is more likely for these features.This seems reasonable because the words in the above talbe are more likely to be included in an email that 
+is related to conference anouncement.
+
+
+\newpage
+##Apdendix
+
+
+```{r, ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+
+```
+
+
+
+
+
+
+

@@ -1,0 +1,433 @@
+---
+title: "Lab1 Block2"
+author: "Group A5"
+date: "1 Dec 2018"
+output: 
+  pdf_document:
+    toc: true
+    highlight: tango
+---
+
+#Assignment 1
+
+```{r,echo=F,message=FALSE}
+##Assignment 1#################################################################
+#spam=1 , no spam=0
+#load libraries
+library(mboost)
+library(randomForest)
+#load data 
+sp <- read.csv2("spambase.csv")
+sp$Spam <- as.factor(sp$Spam)
+#split data to 2/3 train , 1/3 test
+n=dim(sp)[1]
+set.seed(12345)
+id=sample(1:n, floor(n*2/3))
+train_spam=sp[id,]
+test_spam=sp[-id,]
+
+#misclassification error function
+mis_error<-function(X,X1){
+  n<-length(X)
+  return(1-sum(diag(table(X,X1)))/n) 
+}
+
+```
+
+##Ada Boost classification Trees
+```{r,echo=FALSE}
+#adaboost
+steps<-seq(10,100,10)
+er_tr_ada<-double(10)
+er_tes_ada<-double(10)
+#calculate mis.error for train and test
+for (i in steps){
+  ada<-blackboost(Spam~.,data=train_spam,family = AdaExp(),control=boost_control(m =i))#mstop
+  preds_tr_ada<-predict(ada,train_spam,type="class")
+  preds_tes_ada<-predict(ada,test_spam,type="class")
+  er_tr_ada[i/10]<-mis_error(train_spam$Spam,preds_tr_ada)
+  er_tes_ada[i/10]<-mis_error(test_spam$Spam,preds_tes_ada)
+  ada_mat<-cbind(er_tr_ada,er_tes_ada)
+}
+
+```
+
+```{r,echo=F}
+#data frame containing errors
+ada_df<-as.data.frame(ada_mat)
+
+#par(mfrow=c(1,2))           
+layout(matrix(c(1,2,1,2), 2, 2, byrow = TRUE))
+#plots of mis.errors for train and test
+plot(steps,ada_df[,1],type="l",col="red",main="Ada Boost train/test error rates",ylab="misclassification error")
+lines(steps,ada_df[,2],type="l",col="blue")
+#plots of accuracy for train and test
+plot(steps,(1-ada_df[,1]),type="l",col="red",main="Ada Boost train/test accuarcy rates",ylab = "accuracy")
+lines(steps,(1-ada_df[,2]),type="l",col="blue")
+
+
+```
+
+The above plots provide information for about the classification rates and accuracy obtained using ada boost algorithm on train and test data. The red lines represents the classification error/accuracy for train data using a range of 10 to 100 trees and the blue lines is the equivalent for test data. From the plots we can see that using Ada boost the classification rates for both training and test data are decreasing as the number of trees increases and at 40 trees both train and test errors are equal.On the other side the accuracy is increasing as the number of trees increases.
+
+##Random Forest Trees 
+
+```{r,echo=F}
+#random forests
+set.seed(12345)
+er_tr_rnd<-double(10)
+er_tes_rnd<-double(10)
+#calculate mis.error for train and test
+for (i in steps){
+  rndforest<-randomForest(Spam~.,data=train_spam,ntree=i)
+  preds_tr_rnd<-predict(rndforest,train_spam,type="class")
+  preds_tes_rnd<-predict(rndforest,test_spam,type="class")
+  er_tr_rnd[i/10]<-mis_error(train_spam$Spam,preds_tr_rnd)
+  er_tes_rnd[i/10]<-mis_error(test_spam$Spam,preds_tes_rnd)
+  rand_mat<-cbind(er_tr_rnd,er_tes_rnd)
+}
+
+```
+
+
+```{r,echo=F}
+#data frame containing errors
+rnd_df<-as.data.frame(rand_mat)
+#par(mfrow=c(1,2))           
+layout(matrix(c(1,2,1,2), 2, 2, byrow = TRUE))
+#plots of mis.errors for train and test
+plot(steps,rnd_df[,1],type="l",col="red",ylim = c(0,0.07),main="Rndf train/test error rates",ylab="misclassification error")
+lines(steps,rnd_df[,2],type="l",col="blue")
+#plots of accuracy for train and test
+plot(steps,(1-rnd_df[,1]),type="l",col="red",ylim=c(0.94,1),main="Rndf train/test accuracy rates",ylab="accuracy")
+lines(steps,(1-rnd_df[,2]),type="l",col="blue")
+
+```
+
+The above plots provide information for about the classification rates and accuracy obtained using random forests algorithm on train and test data. The red lines represents the classification error/accuracy for train data using a range of 10 to 100 trees and the blue lines is the equivalent for test data.From the plots we can see that using Random forest the classification rates for training is dropping until 20 number of trees and then is slightly decreases as number of trees increases.As for test data the classification error is fluctuating as the number of trees increases.On the other side the accuracy for train data is increasing until 20 trees then just increases very little and the accuracy for test data is fluctuating as the number of trees increases.
+
+Finally,comparing two methods we can conclude that random forest method obtains a very accurate model with 20 trees and as the number of trees grows the model improves only a little regrading accuracy and classification error. On the other hand, the ada boost model keeps improving as the number of trees grows, because the ada boost model would be modified by each iteration, which represents that more trees are considered into our model to rise the accuracy. Compared with the Ada boost classification trees in this case, the random forest models are better since both test and training error rates (<0.06) of random forest are lower than the ones (>0.07) of Ada boost classification trees.
+
+
+#Assignment 2
+
+```{r part1,echo=F,warning=FALSE, message=FALSE}
+
+##Assignment 2#################################################################
+
+max_it <- 100 # max number of EM iterations
+min_change <- 0.1 # min change in log likelihood between two consecutive EM iterations
+N=1000 # number of training points
+D=10 # number of dimensions
+set.seed(1234567890)
+x <- matrix(nrow=N, ncol=D) # training data
+true_pi <- vector(length = 3) # true mixing coefficients
+true_mu <- matrix(nrow=3, ncol=D) # true conditional distributions
+true_pi=c(1/3, 1/3, 1/3)
+true_mu[1,]=c(0.5,0.6,0.4,0.7,0.3,0.8,0.2,0.9,0.1,1)
+true_mu[2,]=c(0.5,0.4,0.6,0.3,0.7,0.2,0.8,0.1,0.9,0)
+true_mu[3,]=c(0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5)
+plot(true_mu[1,], type="o", col="blue", ylim=c(0,1))
+points(true_mu[2,], type="o", col="red")
+points(true_mu[3,], type="o", col="green")
+# Producing the training data
+for(n in 1:N) {
+  k <- sample(1:3,1,prob=true_pi)
+  for(d in 1:D) {
+    x[n,d] <- rbinom(1,1,true_mu[k,d])
+  }
+}
+```
+
+As the true $\mu$ plot shows, the three conditional distributions are weighted as $\pi=(1/3,1/3,1/3)$. And they are all Bernoulli distributions.
+
+```{r,echo=F,warning=FALSE, message=FALSE}
+K=2 # number of guessed components
+z <- matrix(nrow=N, ncol=K) # fractional component assignments
+pi <- vector(length = K) # mixing coefficients
+mu <- matrix(nrow=K, ncol=D) # conditional distributions
+llik <- vector(length = max_it) # log likelihood of the EM iterations
+# Random initialization of the paramters
+pi <- runif(K,0.49,0.51)
+pi <- pi / sum(pi)
+for(k in 1:K){
+  mu[k,] <- runif(D,0.49,0.51)
+}
+pi
+mu
+for(it in 1:max_it) {
+  # plot(mu[1,], type="o", col="blue", ylim=c(0,1))
+  # points(mu[2,], type="o", col="red")
+  # points(mu[3,], type="o", col="green")
+  # points(mu[4,], type="o", col="yellow")
+  #Sys.sleep(0.5)
+  # E-step: Computation of the fractional component assignments
+  # Your code here
+  p<-vector()
+  for(k in 1:K){
+    a<-vector()
+    for(j in 1:N){
+      a[j]<-prod(mu[k,]^x[j,]*(1-mu[k,])^(1-x[j,]))
+    } 
+    p<-cbind(p,a)
+  }
+  pk<-pi*t(p)
+  pk<-t(pk)
+  z<-pk/rowSums(pk)
+  
+  # Log likelihood computation.
+  # Your code here
+  for(n in 1:N){
+    v0<-0
+    for(k in 1:K){
+      u0<-0
+      for(i in 1:D){
+        u<-x[n,i]*log(mu[k,i])+(1-x[n,i])*(log(1-mu[k,i]))
+        u0=u0+u
+      }
+      v<-z[n,k]*(log(pi[k])+u0)
+      v0<-v0+v
+    }
+    llik[it]<-llik[it]+v0
+  }
+  
+  cat("iteration: ", it, "log likelihood: ", llik[it], "\n")
+  flush.console()
+  # Stop if the lok likelihood has not changed significantly
+  # Your code here
+  if(it!=1){
+    dist<-llik[it]-llik[it-1]
+    if(dist<min_change){
+        pi <- colSums(z)/N
+        mu <- t(z)%*%(x)/colSums(z)
+        break()
+    }
+  }
+  # M-step: ML parameter estimation from the data and fractional component assignments
+  # Your code here
+  # 
+  pi <- colSums(z)/N
+  mu <- t(z)%*%(x)/colSums(z)
+}
+pi
+mu
+  plot(mu[1,], type="o", col="blue", ylim=c(0,1))
+  points(mu[2,], type="o", col="red")
+  # points(mu[3,], type="o", col="green")
+  # points(mu[4,], type="o", col="yellow")
+plot(llik[1:it], type="o")
+```
+
+When the K is 2, we can see that the iteration runs 16 times, and the final log likelihood is around -6496. And the weight of these two distribution are around 0.498 and 0.502, which are almost 0.5. And with the $\mu$ plot, we can notice that although there are only 2 distributions in this situation, the shapes are almost the same as the two roughest  true $\mu$ plot shows. And as the loglikelihood value plot shows, the value increases monotonically, and it change much slower after the 8th iteration. And the difference is smaller than 0.1 after 16 iteration.
+
+```{r,echo=F,warning=FALSE, message=FALSE}
+max_it <- 100 # max number of EM iterations
+min_change <- 0.1 # min change in log likelihood between two consecutive EM iterations
+N=1000 # number of training points
+D=10 # number of dimensions
+set.seed(1234567890)
+x <- matrix(nrow=N, ncol=D) # training data
+true_pi <- vector(length = 3) # true mixing coefficients
+true_mu <- matrix(nrow=3, ncol=D) # true conditional distributions
+true_pi=c(1/3, 1/3, 1/3)
+true_mu[1,]=c(0.5,0.6,0.4,0.7,0.3,0.8,0.2,0.9,0.1,1)
+true_mu[2,]=c(0.5,0.4,0.6,0.3,0.7,0.2,0.8,0.1,0.9,0)
+true_mu[3,]=c(0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5)
+# plot(true_mu[1,], type="o", col="blue", ylim=c(0,1))
+# points(true_mu[2,], type="o", col="red")
+# points(true_mu[3,], type="o", col="green")
+# Producing the training data
+for(n in 1:N) {
+  k <- sample(1:3,1,prob=true_pi)
+  for(d in 1:D) {
+    x[n,d] <- rbinom(1,1,true_mu[k,d])
+  }
+}
+K=3 # number of guessed components
+z <- matrix(nrow=N, ncol=K) # fractional component assignments
+pi <- vector(length = K) # mixing coefficients
+mu <- matrix(nrow=K, ncol=D) # conditional distributions
+llik <- vector(length = max_it) # log likelihood of the EM iterations
+# Random initialization of the paramters
+pi <- runif(K,0.49,0.51)
+pi <- pi / sum(pi)
+for(k in 1:K){
+  mu[k,] <- runif(D,0.49,0.51)
+}
+pi
+mu
+for(it in 1:max_it) {
+  #plot(mu[1,], type="o", col="blue", ylim=c(0,1))
+  #points(mu[2,], type="o", col="red")
+  #points(mu[3,], type="o", col="green")
+  #points(mu[4,], type="o", col="yellow")
+  #Sys.sleep(0.5)
+  # E-step: Computation of the fractional component assignments
+  # Your code here
+  p<-vector()
+  for(k in 1:K){
+    a<-vector()
+    for(j in 1:N){
+      a[j]<-prod(mu[k,]^x[j,]*(1-mu[k,])^(1-x[j,]))
+    } 
+    p<-cbind(p,a)
+  }
+  pk<-pi*t(p)
+  pk<-t(pk)
+  z<-pk/rowSums(pk)
+  
+  # Log likelihood computation.
+  # Your code here
+  for(n in 1:N){
+    v0<-0
+    for(k in 1:K){
+      u0<-0
+      for(i in 1:D){
+        u<-x[n,i]*log(mu[k,i])+(1-x[n,i])*(log(1-mu[k,i]))
+        u0=u0+u
+      }
+      v<-z[n,k]*(log(pi[k])+u0)
+      v0<-v0+v
+    }
+    llik[it]<-llik[it]+v0
+  }
+  
+  cat("iteration: ", it, "log likelihood: ", llik[it], "\n")
+  flush.console()
+  # Stop if the lok likelihood has not changed significantly
+  # Your code here
+  if(it!=1){
+    dist<-llik[it]-llik[it-1]
+    if(dist<min_change){
+        pi <- colSums(z)/N
+        mu <- t(z)%*%(x)/colSums(z)
+        break()
+    }
+  }
+  # M-step: ML parameter estimation from the data and fractional component assignments
+  # Your code here
+  pi <- colSums(z)/N
+  mu <- t(z)%*%(x)/colSums(z)
+}
+pi
+mu
+  plot(mu[1,], type="o", col="blue", ylim=c(0,1))
+  points(mu[2,], type="o", col="red")
+  points(mu[3,], type="o", col="green")
+  # points(mu[4,], type="o", col="yellow")
+plot(llik[1:it], type="o")
+```
+
+When K is 3, we can see the iteration runs 62 times and the final log likelihood value is around -6743. And the weight of these three distributions are 0.3257375, 0.3048066 and 0.3694558 which are all around 1/3. And the $\mu$ plot is quite similar, especially for the two rough waving paths(blue and green paths), which have the weights 0.3694558 and 0.3257375. And although the remaining path is not so similar to the original one, but it is still trends to be the same. So compared with the true thing, this estimate situation is good enough. And for the loglikelihood value, it also increases monotonically and changes much slower after the 8th iteration.
+
+```{r,echo=F,warning=FALSE, message=FALSE}
+max_it <- 100 # max number of EM iterations
+min_change <- 0.1 # min change in log likelihood between two consecutive EM iterations
+N=1000 # number of training points
+D=10 # number of dimensions
+set.seed(1234567890)
+x <- matrix(nrow=N, ncol=D) # training data
+true_pi <- vector(length = 3) # true mixing coefficients
+true_mu <- matrix(nrow=3, ncol=D) # true conditional distributions
+true_pi=c(1/3, 1/3, 1/3)
+true_mu[1,]=c(0.5,0.6,0.4,0.7,0.3,0.8,0.2,0.9,0.1,1)
+true_mu[2,]=c(0.5,0.4,0.6,0.3,0.7,0.2,0.8,0.1,0.9,0)
+true_mu[3,]=c(0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5)
+# plot(true_mu[1,], type="o", col="blue", ylim=c(0,1))
+# points(true_mu[2,], type="o", col="red")
+# points(true_mu[3,], type="o", col="green")
+# Producing the training data
+for(n in 1:N) {
+  k <- sample(1:3,1,prob=true_pi)
+  for(d in 1:D) {
+    x[n,d] <- rbinom(1,1,true_mu[k,d])
+  }
+}
+K=4 # number of guessed components
+z <- matrix(nrow=N, ncol=K) # fractional component assignments
+pi <- vector(length = K) # mixing coefficients
+mu <- matrix(nrow=K, ncol=D) # conditional distributions
+llik <- vector(length = max_it) # log likelihood of the EM iterations
+# Random initialization of the paramters
+pi <- runif(K,0.49,0.51)
+pi <- pi / sum(pi)
+for(k in 1:K){
+  mu[k,] <- runif(D,0.49,0.51)
+}
+pi
+mu
+for(it in 1:max_it) {
+  # plot(mu[1,], type="o", col="blue", ylim=c(0,1))
+  # points(mu[2,], type="o", col="red")
+  # points(mu[3,], type="o", col="green")
+  # points(mu[4,], type="o", col="yellow")
+  #Sys.sleep(0.5)
+  # E-step: Computation of the fractional component assignments
+  # Your code here
+  p<-vector()
+  for(k in 1:K){
+    a<-vector()
+    for(j in 1:N){
+      a[j]<-prod(mu[k,]^x[j,]*(1-mu[k,])^(1-x[j,]))
+    } 
+    p<-cbind(p,a)
+  }
+  pk<-pi*t(p)
+  pk<-t(pk)
+  z<-pk/rowSums(pk)
+  
+  # Log likelihood computation.
+  # Your code here
+  for(n in 1:N){
+    v0<-0
+    for(k in 1:K){
+      u0<-0
+      for(i in 1:D){
+        u<-x[n,i]*log(mu[k,i])+(1-x[n,i])*(log(1-mu[k,i]))
+        u0=u0+u
+      }
+      v<-z[n,k]*(log(pi[k])+u0)
+      v0<-v0+v
+    }
+    llik[it]<-llik[it]+v0
+  }
+  
+  cat("iteration: ", it, "log likelihood: ", llik[it], "\n")
+  flush.console()
+  # Stop if the lok likelihood has not changed significantly
+  # Your code here
+  if(it!=1){
+    dist<-llik[it]-llik[it-1]
+    if(dist<min_change){
+      pi <- colSums(z)/N
+      mu <- t(z)%*%(x)/colSums(z)
+      break()
+    }
+  }
+  # M-step: ML parameter estimation from the data and fractional component assignments
+  # Your code here
+  pi <- colSums(z)/N
+  mu <- t(z)%*%(x)/colSums(z)
+}
+pi
+mu
+  plot(mu[1,], type="o", col="blue", ylim=c(0,1))
+  points(mu[2,], type="o", col="red")
+  points(mu[3,], type="o", col="green")
+  points(mu[4,], type="o", col="yellow")
+plot(llik[1:it], type="o")
+```
+
+When K is 4, we can see the iteration runs 66 times and the final log likelihood value is around -6874. And the weight of these four distributions are 0.1617479, 0.1383200, 0.3611987 and 0.3387334. As the $\mu$ plot shows, the yellow and green paths are almost the same as the green and blue paths in previous situation. And they have the weights 0.3611987 and 0.3387334 which is also similar to 1/3. But the remaining paths (blue and red lines) have the smaller weight(0.1617479, 0.1383200) and as the plot shows, they seems to be symmetric around the line $\mu=0.5$. And the log likelihood value increases monotonically and changes much slower after the 8th iteration, just as the first two situations. 
+
+As we can see from the reported answers above, when the number of components goes up, the number of running time goes up too,
+and the final maximum loglikelihood value becomes lower. Compared with those three situations, we can notice there are always two distributions weighted larger or equal to 1/3, which may means this two conditional distributions have vital impacts to the mixtures of multivariate Bernoulli distributions when K is 2, 3 and 4. And when $K=3$, the estimated result are very closed to the true value. But when K is too few as the situation with $K=2$ shows, the weight of those two distributions are much higher than the true value (1/3). This may because the distribution may not divided significantly, there may have some other distribution divided from the mix model.  And when K is too large as the situation with $K=4$ shows, two distribution's weights are smaller than the true value. The reason of it may be the over deviation of the model distribution. And it may cause the segmentation of a real distribution just as $K=4$ situation shows. To sum up, when components is too few, the estimation will cause by the not significant deviation. But when components is too much, it may cause the over deviation. It is very necessary to define an precise number of components for the EM algorithm.
+
+\newpage
+# Contributions
+Assignment 1 is from *Andreas Christopoulos Charitos* and assignment 2 is from *Jiawei Wu*. Additionally, *Zijie Feng* makes the final conclusion of assignment 1 and 2.
+
+#Appendix
+```{r, ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+
+```
